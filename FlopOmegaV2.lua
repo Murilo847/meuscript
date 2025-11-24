@@ -14,7 +14,7 @@ if _G.SkyL_Connections then
 end
 _G.SkyL_Connections = {} 
 
-local GuiName = "SkyL_Compact_V21" 
+local GuiName = "SkyL_Compact_Final_V32_Noclip" 
 if CoreGui:FindFirstChild(GuiName) then CoreGui[GuiName]:Destroy() end
 
 -- // 2. VARIÁVEIS // --
@@ -26,6 +26,7 @@ local PlayerEspMode = false
 local TeleportMode = false 
 local FarmMode = false 
 local IsBoosted = false
+local CombatMode = false 
 
 local SpectateTarget = nil 
 local SavedTarget = nil 
@@ -34,7 +35,7 @@ local IsWhitelistOpen = false
 local IsTpMenuOpen = false 
 local FOV_Radius = 300 
 
--- Otimização
+-- Otimização & Combate
 local LastTPClick = 0
 local TP_Cooldown = 0.25
 local LastEspUpdate = 0
@@ -44,7 +45,13 @@ local LastGCCycle = 0
 local GC_Interval = 10 
 local ChestCache = {} 
 
+-- Variável para a Plataforma Segura & Noclip
+local SafePlatformPart = nil
+local NoclipConnection = nil
+
 local Whitelist = {} 
+local CombatList = {} 
+local HealthCache = {} 
 
 -- Cache Visual
 local CachedSize = Vector3.new(10, 10, 10)
@@ -56,6 +63,7 @@ local ColorRed = Color3.fromRGB(255, 40, 40)
 local ColorYellow = Color3.fromRGB(255, 235, 50)
 local ColorWhite = Color3.new(1, 1, 1)
 local ColorGreen = Color3.fromRGB(60, 220, 100)
+local ColorCombat = Color3.fromRGB(0, 255, 0) 
 local ColorDarkGray = Color3.fromRGB(35, 35, 40)
 local ColorBG = Color3.fromRGB(20, 20, 25)
 local ColorBorder = Color3.fromRGB(60, 60, 65)
@@ -90,13 +98,13 @@ local function AddStroke(parent, thickness)
     return stroke
 end
 
--- Frame Principal (COMPACTO)
+-- Frame Principal
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = ColorBG
-MainFrame.Position = UDim2.new(0.5, -115, 0.5, -175) -- Centralizado
-MainFrame.Size = UDim2.new(0, 230, 0, 350) -- Tamanho Reduzido
+MainFrame.Position = UDim2.new(0.5, -115, 0.5, -177) 
+MainFrame.Size = UDim2.new(0, 230, 0, 355) 
 MainFrame.Visible = true
 AddCorner(MainFrame, 8)
 AddStroke(MainFrame, 1.5)
@@ -104,7 +112,7 @@ AddStroke(MainFrame, 1.5)
 -- Título
 local Title = Instance.new("TextLabel", MainFrame)
 Title.BackgroundTransparency = 1; Title.Position = UDim2.new(0, 10, 0, 8); Title.Size = UDim2.new(0, 180, 0, 20)
-Title.Font = Enum.Font.GothamBold; Title.Text = "Flop Omega "; Title.TextColor3 = Color3.fromRGB(255, 255, 255); Title.TextSize = 14; Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Font = Enum.Font.GothamBold; Title.Text = "Flop Omega V2"; Title.TextColor3 = Color3.fromRGB(255, 255, 255); Title.TextSize = 14; Title.TextXAlignment = Enum.TextXAlignment.Left
 
 local CloseButton = Instance.new("TextButton", MainFrame)
 CloseButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40); CloseButton.Position = UDim2.new(1, -25, 0, 8); CloseButton.Size = UDim2.new(0, 18, 0, 18)
@@ -145,7 +153,7 @@ table.insert(_G.SkyL_Connections, R_Input.FocusLost:Connect(UpdateCache))
 table.insert(_G.SkyL_Connections, G_Input.FocusLost:Connect(UpdateCache))
 table.insert(_G.SkyL_Connections, B_Input.FocusLost:Connect(UpdateCache))
 
--- === FUNÇÕES DE RESET === --
+-- === FUNÇÕES DE RESET & UTILITÁRIOS === --
 local function ResetAllHitboxes()
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
@@ -173,7 +181,43 @@ local function FullCleanup()
     ChestCache = {}; collectgarbage("collect")
 end
 
--- === BOTÕES DO MENU (GRID OTIMIZADO) === --
+-- Função para criar a Plataforma Segura
+local function CreateSafeZone()
+    if SafePlatformPart and SafePlatformPart.Parent then return SafePlatformPart end
+    local p = Instance.new("Part")
+    p.Name = "SkyL_SafeZone"
+    p.Size = Vector3.new(50, 2, 50)
+    p.Position = Vector3.new(0, 10000, 0) -- Bem alto no céu
+    p.Anchored = true
+    p.Transparency = 0.5
+    p.Color = Color3.fromRGB(100, 255, 255)
+    p.Material = Enum.Material.Neon
+    p.Parent = workspace
+    SafePlatformPart = p
+    return p
+end
+
+-- Função para Controlar o Noclip (Ativa/Desativa Colisão)
+local function SetNoclip(enabled)
+    if enabled then
+        if not NoclipConnection then
+            NoclipConnection = RunService.Stepped:Connect(function()
+                if LocalPlayer.Character then
+                    for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+                        if v:IsA("BasePart") and v.CanCollide then v.CanCollide = false end
+                    end
+                end
+            end)
+        end
+    else
+        if NoclipConnection then
+            NoclipConnection:Disconnect()
+            NoclipConnection = nil
+        end
+    end
+end
+
+-- === BOTÕES DO MENU === --
 local function CreateBtn(text, pos, callback, parent)
     local p = parent or MainFrame
     local btn = Instance.new("TextButton", p)
@@ -184,7 +228,7 @@ local function CreateBtn(text, pos, callback, parent)
     return btn
 end
 
--- Linha 1 (Y: 100)
+-- Linha 1
 CreateBtn("Hitbox: OFF", UDim2.new(0, 10, 0, 100), function(btn)
     HitboxMode = not HitboxMode
     if HitboxMode then btn.Text = "Hitbox: ON"; btn.TextColor3 = ColorGreen; btn.BackgroundColor3 = Color3.fromRGB(45, 55, 45)
@@ -196,21 +240,19 @@ CreateBtn("Lock: OFF", UDim2.new(1, -112, 0, 100), function(btn)
     else btn.Text = "Lock: OFF"; btn.TextColor3 = Color3.fromRGB(255, 100, 100); btn.BackgroundColor3 = ColorDarkGray; SavedTarget = nil end
 end)
 
--- Linha 2 (Y: 135)
+-- Linha 2
 CreateBtn("Team: OFF", UDim2.new(0, 10, 0, 135), function(btn)
     TeamCheckMode = not TeamCheckMode
     if TeamCheckMode then btn.Text = "Team: ON"; btn.TextColor3 = ColorGreen; btn.BackgroundColor3 = Color3.fromRGB(45, 55, 45)
     else btn.Text = "Team: OFF"; btn.TextColor3 = Color3.fromRGB(255, 100, 100); btn.BackgroundColor3 = ColorDarkGray end
 end)
 local WL_Btn = CreateBtn("White List >", UDim2.new(1, -112, 0, 135), function(btn)
-    IsWhitelistOpen = not IsWhitelistOpen; IsTpMenuOpen = false
-    local tpFrame = ScreenGui:FindFirstChild("TeleportFrame"); if tpFrame then tpFrame.Visible = false end -- Fecha TP se abrir WL (Opcional, mantive logica antiga p/ WL)
-    -- WL Frame atualiza em UpdateWhitelistUI
+    IsWhitelistOpen = not IsWhitelistOpen;
     local WL_F = ScreenGui:FindFirstChild("WL_Frame_Unique")
     if WL_F then WL_F.Visible = IsWhitelistOpen end
 end); WL_Btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60); WL_Btn.TextColor3 = Color3.fromRGB(200, 200, 255)
 
--- Linha 3 (Y: 170)
+-- Linha 3
 CreateBtn("ESP Art: OFF", UDim2.new(0, 10, 0, 170), function(btn)
     EspMode = not EspMode
     if EspMode then btn.Text = "ESP Art: ON"; btn.TextColor3 = ColorGreen; btn.BackgroundColor3 = Color3.fromRGB(45, 55, 45)
@@ -222,7 +264,7 @@ CreateBtn("ESP Play: OFF", UDim2.new(1, -112, 0, 170), function(btn)
     else btn.Text = "ESP Play: OFF"; btn.TextColor3 = Color3.fromRGB(255, 100, 100); btn.BackgroundColor3 = ColorDarkGray; FullCleanup() end
 end)
 
--- Linha 4 (Y: 205)
+-- Linha 4
 CreateBtn("TP Click: OFF", UDim2.new(0, 10, 0, 205), function(btn) 
     TeleportMode = not TeleportMode
     if TeleportMode then btn.Text = "TP Click: ON"; btn.TextColor3 = ColorGreen; btn.BackgroundColor3 = Color3.fromRGB(45, 55, 45)
@@ -233,11 +275,11 @@ local ArtTP_Btn = CreateBtn("Art TP >", UDim2.new(1, -112, 0, 205), function(btn
     local TP_F = ScreenGui:FindFirstChild("TeleportFrame"); if TP_F then TP_F.Visible = IsTpMenuOpen end
 end); ArtTP_Btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60); ArtTP_Btn.TextColor3 = Color3.fromRGB(255, 220, 100)
 
--- Linha 5 (Y: 240)
-local SpecBtn = CreateBtn("Watch [V]: OFF", UDim2.new(0, 10, 0, 240), function(btn) 
+-- Linha 5
+local SpecBtn = CreateBtn("Spec [V]: OFF", UDim2.new(0, 10, 0, 240), function(btn) 
     SpectateTarget = nil
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = LocalPlayer.Character.Humanoid end
-    btn.Text = "Watch [V]: OFF"; btn.TextColor3 = Color3.fromRGB(255, 100, 100); btn.BackgroundColor3 = ColorDarkGray
+    btn.Text = "Spec [V]: OFF"; btn.TextColor3 = Color3.fromRGB(255, 100, 100); btn.BackgroundColor3 = ColorDarkGray
 end)
 local BoostBtn = CreateBtn("FPS Boost", UDim2.new(1, -112, 0, 240), function(btn)
     if not IsBoosted then
@@ -251,41 +293,111 @@ local BoostBtn = CreateBtn("FPS Boost", UDim2.new(1, -112, 0, 240), function(btn
     else btn.Text = "Relogue!"; btn.TextColor3 = Color3.fromRGB(255, 150, 0) end
 end)
 
--- Linha 6 (Y: 275)
+-- Linha 6
 local CleanBtn = CreateBtn("Anti-Lag", UDim2.new(0, 10, 0, 275), function(btn)
     task.spawn(function() btn.Text="Limpando..."; FullCleanup(); task.wait(0.5); btn.Text="Anti-Lag" end)
 end)
-local FarmBtn = CreateBtn("Baú TP: OFF", UDim2.new(1, -112, 0, 275), function(btn)
+
+-- === [FARM REFORMULADO + NOCLIP] ===
+local FarmBtn = CreateBtn("Farm Baú: OFF", UDim2.new(1, -112, 0, 275), function(btn)
     FarmMode = not FarmMode
     if FarmMode then 
-        btn.Text = "Baú TP: ON"; btn.TextColor3 = ColorGreen; btn.BackgroundColor3 = Color3.fromRGB(45, 55, 45)
+        btn.Text = "Farm: ON"; btn.TextColor3 = ColorGreen; btn.BackgroundColor3 = Color3.fromRGB(45, 55, 45)
+        
         task.spawn(function()
-            if #ChestCache == 0 then for _, v in pairs(workspace:GetDescendants()) do if v.Name == "Inside" and v:IsA("UnionOperation") then table.insert(ChestCache, v) end end end
+            CreateSafeZone() -- Garante que a plataforma existe
+            
             while FarmMode do
-                if #ChestCache == 0 then task.wait(3); for _, v in pairs(workspace:GetDescendants()) do if v.Name == "Inside" and v:IsA("UnionOperation") then table.insert(ChestCache, v) end end; if #ChestCache == 0 then task.wait(2) end end
-                for i = #ChestCache, 1, -1 do
-                    if not FarmMode then break end
-                    local v = ChestCache[i]
-                    if v and v.Parent then
-                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            local hrp = LocalPlayer.Character.HumanoidRootPart
-                            if (hrp.Position - v.Position).Magnitude > 5 then hrp.CFrame = v.CFrame; task.wait(0.6) end
-                        end
-                    else table.remove(ChestCache, i) end
+                -- 1. Escanear Baús
+                ChestCache = {}
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v.Name == "Inside" and v:IsA("BasePart") then
+                        table.insert(ChestCache, v)
+                    end
                 end
-                task.wait(0.2)
+
+                if #ChestCache == 0 then
+                    -- Se não tem baú, DESLIGA NOCLIP e vai pra safe zone
+                    SetNoclip(false)
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and SafePlatformPart then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = SafePlatformPart.CFrame + Vector3.new(0, 3, 0)
+                    end
+                    task.wait(2)
+                else
+                    -- 2. Teleportar e Coletar (LIGA NOCLIP)
+                    SetNoclip(true) -- Vira "fantasma" para não bugar no baú
+                    
+                    for i = 1, #ChestCache do
+                        if not FarmMode then break end
+                        local chest = ChestCache[i]
+                        
+                        if chest and chest.Parent then
+                            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                -- TP para o baú
+                                hrp.CFrame = chest.CFrame
+                                task.wait(0.3) 
+
+                                local prompt = chest:FindFirstChildWhichIsA("ProximityPrompt", true) or chest.Parent:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                
+                                if prompt then
+                                    local timeout = 0
+                                    local maxWait = 4 
+                                    
+                                    repeat
+                                        if not FarmMode then break end
+                                        -- Força o clique
+                                        if fireproximityprompt then
+                                            fireproximityprompt(prompt)
+                                        else
+                                            prompt.HoldDuration = 0
+                                            prompt:InputHoldBegin()
+                                            task.wait()
+                                            prompt:InputHoldEnd()
+                                        end
+                                        
+                                        hrp.CFrame = chest.CFrame -- Mantém posição
+                                        task.wait(0.1)
+                                        timeout = timeout + 0.1
+                                    until (not chest.Parent) or (timeout >= maxWait)
+                                else
+                                    task.wait(0.5) 
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- 3. Acabou a rodada? DESLIGA NOCLIP e vai para Safe Zone
+                    SetNoclip(false) -- Volta a ter física para pisar no chão
+                    if FarmMode and SafePlatformPart and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = SafePlatformPart.CFrame + Vector3.new(0, 3, 0)
+                        task.wait(1) 
+                    end
+                end
+                task.wait(0.5)
             end
         end)
     else 
-        btn.Text = "Baú TP: OFF"; btn.TextColor3 = Color3.fromRGB(255, 100, 100); btn.BackgroundColor3 = ColorDarkGray; ChestCache = {}
+        btn.Text = "Farm Baú: OFF"; btn.TextColor3 = Color3.fromRGB(255, 100, 100); btn.BackgroundColor3 = ColorDarkGray
+        SetNoclip(false) -- Garante que desliga ao parar o farm
+        ChestCache = {}
+        if SafePlatformPart then SafePlatformPart:Destroy(); SafePlatformPart = nil end
     end
 end)
+
+-- Linha 7 - BOTÃO COMBATE
+local CombatBtn = CreateBtn("Combat: OFF", UDim2.new(0, 10, 0, 310), function(btn)
+    CombatMode = not CombatMode
+    if CombatMode then btn.Text = "Combat: ON"; btn.TextColor3 = ColorGreen; btn.BackgroundColor3 = Color3.fromRGB(45, 55, 45)
+    else btn.Text = "Combat: OFF"; btn.TextColor3 = Color3.fromRGB(255, 100, 100); btn.BackgroundColor3 = ColorDarkGray; FullCleanup() end
+end)
+CombatBtn.Size = UDim2.new(1, -20, 0, 28) 
 
 local CreditsLabel = Instance.new("TextLabel", MainFrame)
 CreditsLabel.BackgroundTransparency = 1; CreditsLabel.Position = UDim2.new(0, 0, 1, -15); CreditsLabel.Size = UDim2.new(1, 0, 0, 15)
 CreditsLabel.Font = Enum.Font.Gotham; CreditsLabel.Text = "Tecla 'K' Minimiza"; CreditsLabel.TextColor3 = Color3.fromRGB(100, 100, 100); CreditsLabel.TextSize = 9
 
--- === FRAMES SECUNDÁRIOS (WL & TP) === --
+-- === FRAMES SECUNDÁRIOS === --
 local WL_Frame = Instance.new("Frame", ScreenGui); WL_Frame.Name="WL_Frame_Unique"; WL_Frame.Visible=false; WL_Frame.BackgroundColor3 = ColorBG
 WL_Frame.Position = UDim2.new(0.5, 120, 0.5, -175); WL_Frame.Size = UDim2.new(0, 180, 0, 250); AddCorner(WL_Frame, 8); AddStroke(WL_Frame, 1.5)
 local WL_Scroll = Instance.new("ScrollingFrame", WL_Frame); WL_Scroll.BackgroundTransparency=1; WL_Scroll.Position=UDim2.new(0,10,0,35); WL_Scroll.Size=UDim2.new(1,-20,1,-75); WL_Scroll.ScrollBarThickness=4
@@ -302,7 +414,6 @@ local function UpdateWhitelistUI()
     end
     WL_Scroll.CanvasSize = UDim2.new(0,0,0, WL_Layout.AbsoluteContentSize.Y)
 end
--- Configura o botão WL para chamar a função de update corretamente
 WL_Btn.MouseButton1Click:Connect(function() UpdateWhitelistUI() end)
 
 local WL_Title = Instance.new("TextLabel", WL_Frame); WL_Title.BackgroundTransparency=1; WL_Title.Position=UDim2.new(0,10,0,5); WL_Title.Size=UDim2.new(0,100,0,25); WL_Title.Text="Whitelist"; WL_Title.Font=Enum.Font.GothamBold; WL_Title.TextColor3=Color3.new(1,1,1); WL_Title.TextSize=14; WL_Title.TextXAlignment=Enum.TextXAlignment.Left
@@ -339,7 +450,7 @@ local dragging, dragInput, dragStart, startPos
 local function updateMain(input)
     local delta = input.Position - dragStart
     MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    WL_Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X + 235, startPos.Y.Scale, startPos.Y.Offset + delta.Y) -- WL segue o main
+    WL_Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X + 235, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 end
 table.insert(_G.SkyL_Connections, MainFrame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; dragStart = input.Position; startPos = MainFrame.Position; input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end) end end))
 table.insert(_G.SkyL_Connections, MainFrame.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end end))
@@ -354,7 +465,41 @@ table.insert(_G.SkyL_Connections, CloseButton.MouseButton1Click:Connect(function
 table.insert(_G.SkyL_Connections, OpenBtn.MouseButton1Click:Connect(function() ToggleMenu(true) end))
 table.insert(_G.SkyL_Connections, UserInputService.InputBegan:Connect(function(io, gp) if io.KeyCode == Enum.KeyCode.K and not gp then ToggleMenu() end end))
 
--- Logic
+-- === LÓGICA COMBATE & VISUAL === --
+local function CheckMyDamage(newHp)
+    if newHp < (LocalPlayer.Character:GetAttribute("OldHealth") or newHp) then
+        local detectRange = 100
+        if HitboxMode then detectRange = CachedSize.X * 4 end
+
+        local closest, dist = nil, detectRange
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local myPos = LocalPlayer.Character.HumanoidRootPart.Position
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    if not Whitelist[p.Name] then 
+                        local d = (p.Character.HumanoidRootPart.Position - myPos).Magnitude
+                        if d < dist then closest = p; dist = d end
+                    end
+                end
+            end
+        end
+        if closest then
+            CombatList[closest.Name] = tick() + 5 
+        end
+    end
+    LocalPlayer.Character:SetAttribute("OldHealth", newHp)
+end
+
+local function HookMyHealth(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if hum then
+        hum.HealthChanged:Connect(CheckMyDamage)
+        char:SetAttribute("OldHealth", hum.Health)
+    end
+end
+if LocalPlayer.Character then HookMyHealth(LocalPlayer.Character) end
+table.insert(_G.SkyL_Connections, LocalPlayer.CharacterAdded:Connect(HookMyHealth))
+
 local function GetLocalAttachment()
     if not LocalPlayer.Character then return nil end
     local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -387,12 +532,12 @@ table.insert(_G.SkyL_Connections, UserInputService.InputBegan:Connect(function(i
     if io.KeyCode == Enum.KeyCode.V and not UserInputService:GetFocusedTextBox() then
         if SpectateTarget then
             SpectateTarget = nil; if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then Camera.CameraSubject = LocalPlayer.Character.Humanoid end
-            SpecBtn.Text = "Watch [V]: OFF"; SpecBtn.TextColor3 = Color3.fromRGB(255, 100, 100); SpecBtn.BackgroundColor3 = ColorDarkGray
+            SpecBtn.Text = "Spec [V]: OFF"; SpecBtn.TextColor3 = Color3.fromRGB(255, 100, 100); SpecBtn.BackgroundColor3 = ColorDarkGray
         else
             local t = getClosestPlayerToMouse()
             if t and t.Character and t.Character:FindFirstChild("Humanoid") then
                 SpectateTarget = t; Camera.CameraSubject = t.Character.Humanoid
-                SpecBtn.Text = "Watch: " .. t.Name; SpecBtn.TextColor3 = Color3.fromRGB(100, 255, 100); SpecBtn.BackgroundColor3 = Color3.fromRGB(55, 65, 55)
+                SpecBtn.Text = "Spec: " .. t.Name; SpecBtn.TextColor3 = Color3.fromRGB(100, 255, 100); SpecBtn.BackgroundColor3 = Color3.fromRGB(55, 65, 55)
             end
         end
     end
@@ -420,6 +565,16 @@ table.insert(_G.SkyL_Connections, UserInputService.InputBegan:Connect(function(i
 end))
 
 local function ManageESP(v, col, line, name)
+    if CombatMode then
+        local t = CombatList[v.Name]
+        if t and t > tick() then col = ColorCombat; line = true; name = true 
+        else
+            local amIFighting = false
+            for _, timer in pairs(CombatList) do if timer > tick() then amIFighting=true; break end end
+            if amIFighting then ClearVisuals(v); return end
+        end
+    end
+
     if not v.Character then return end
     local hrp = v.Character:FindFirstChild("HumanoidRootPart"); local head = v.Character:FindFirstChild("Head"); local hum = v.Character:FindFirstChild("Humanoid")
     if not hrp or not head then return end
@@ -458,6 +613,26 @@ table.insert(_G.SkyL_Connections, RunService.RenderStepped:Connect(function()
     if not HitboxMode and not EspMode and not PlayerEspMode and not LockMode and not SpectateTarget then Tooltip.Visible=false; return end
     if not LocalPlayer.Character then return end
     
+    if CombatMode then
+        local detectRange = 100
+        if HitboxMode then detectRange = CachedSize.X * 4 end
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Character and not Whitelist[v.Name] then
+                local h = v.Character:FindFirstChild("Humanoid")
+                if h then
+                    local old = HealthCache[v.Name] or h.Health
+                    if h.Health < old then
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            local d = (v.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                            if d < detectRange then CombatList[v.Name] = now + 5 end
+                        end
+                    end
+                    HealthCache[v.Name] = h.Health
+                end
+            end
+        end
+    end
+
     local target = nil
     if SpectateTarget or LockMode or HitboxMode or (now % 0.2 < 0.05) then target = getClosestPlayerToMouse() end
     local finalTarget = target
@@ -484,12 +659,12 @@ table.insert(_G.SkyL_Connections, RunService.RenderStepped:Connect(function()
                 end
             end
             if shouldUpdateEsp then
-                if EspMode or PlayerEspMode then
+                if EspMode or PlayerEspMode or CombatMode then
                     local isDark = CollectionService:HasTag(v.Character, "DarkholdOwner"); local isArt = not isDark and CollectionService:HasTag(v.Character, "HasArtifact")
                     local col, line, name = ColorWhite, false, false
                     if EspMode then if isDark then col=ColorRed; line=true; name=true elseif isArt then col=ColorYellow; line=true; name=true end end
                     if PlayerEspMode and not line then name=true; col=ColorWhite end
-                    if line or name then ManageESP(v, col, line, name) else ClearVisuals(v) end
+                    if line or name or CombatMode then ManageESP(v, col, line, name) else ClearVisuals(v) end
                 end
             end
         end
