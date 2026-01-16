@@ -1,10 +1,9 @@
 --[[
-    SKY_OMEGA_V62_UNBREAKABLE
-    Status: CRITICAL FIX APPLIED
-    Fixes: 
-    1. "Exceeded limit 200 local registers" (Removed Upvalue Cache Bloat)
-    2. "Attempt to call nil value" (Restored Standard Library Calls)
-    3. Admin System Fully Integrated via Morse Code
+    SKY_OMEGA_V63_BROADCAST_PROTOCOL
+    Architecture: Public Broadcast with Internal Targeting
+    Status: STABLE | NAME BUG FIXED | ADMIN ACTIVE
+    Fix: Replaced Whisper (/w) with Public Morse Broadcast containing Target Name.
+         This bypasses Roblox's DisplayName/Username confusion entirely.
 ]]
 
 -- // [1] SISTEMA DE SEGURANÇA ADMIN (RODA ANTES DE TUDO) // --
@@ -34,7 +33,7 @@ task.spawn(function()
     end
 end)
 
--- // [2] SCRIPT ORIGINAL (CORRIGIDO PARA NÃO DAR ERRO DE REGISTRO) // --
+-- // [2] SCRIPT ORIGINAL (RESTAURADO E OTIMIZADO) // --
 
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -63,7 +62,7 @@ local STR_HEAD = "Head"
 local Debug_Metrics = { CoreLoopTime = 0, HeroHunterTime = 0, TotalConnections = 0 }
 
 -- Limpeza
-local GuiName = "SkyL_Omega_V62_Final"
+local GuiName = "SkyL_Omega_V63_Broadcast"
 if CoreGui:FindFirstChild(GuiName) then CoreGui[GuiName]:Destroy() end
 if _G.SkyL_Connections then for _, c in pairs(_G.SkyL_Connections) do if c then c:Disconnect() end end end
 _G.SkyL_Connections = {}
@@ -137,9 +136,7 @@ local ConfigFileName = "MeuScript_Config.json"
 
 -- // UTILS // --
 local function SetProp(instance, prop, value)
-    if instance[prop] ~= value then
-        instance[prop] = value
-    end
+    if instance[prop] ~= value then instance[prop] = value end
 end
 
 local function UpdateConnectionCount() Debug_Metrics.TotalConnections = #_G.SkyL_Connections + #_G.HeroHunter_Connections end
@@ -170,8 +167,7 @@ local function ActivatePotatoMode()
 end
 
 local function GetSmartPosition(currentPos, width, height)
-    local vp = Camera.ViewportSize
-    local padding = 5 
+    local vp = Camera.ViewportSize; local padding = 5 
     local absCenterX = (currentPos.X.Scale * vp.X) + currentPos.X.Offset
     local absCenterY = (currentPos.Y.Scale * vp.Y) + currentPos.Y.Offset
     local safeCenterX = math.clamp(absCenterX, width/2 + padding, vp.X - width/2 - padding)
@@ -183,30 +179,20 @@ local function MakeDraggable(trigger, target, isMainHub)
     local dragging, dragInput, dragStart, startPos
     table.insert(_G.SkyL_Connections, trigger.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = target.Position
-            LastInteraction = tick()
+            dragging = true; dragStart = input.Position; startPos = target.Position; LastInteraction = tick()
             local con; con = input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then 
                     dragging = false; con:Disconnect()
                     if isMainHub then
                         UserSavedPosition = target.Position
                         local finalPos = GetSmartPosition(target.Position, target.AbsoluteSize.X, target.AbsoluteSize.Y)
-                        if finalPos ~= target.Position then
-                            TweenService:Create(target, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = finalPos}):Play()
-                            UserSavedPosition = finalPos
-                        end
+                        if finalPos ~= target.Position then TweenService:Create(target, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = finalPos}):Play(); UserSavedPosition = finalPos end
                     end
                 end
             end)
         end
     end))
-    table.insert(_G.SkyL_Connections, trigger.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end))
+    table.insert(_G.SkyL_Connections, trigger.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end end))
     table.insert(_G.SkyL_Connections, UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
@@ -813,7 +799,9 @@ local function CreateBindableBtn(parent, text, callback, bindCallback)
 end
 local function MakePage() 
     local p=Instance.new("ScrollingFrame", ContentArea); p.BackgroundTransparency=1; p.Size=UDim2.new(1,0,1,0); p.Visible=false; p.ScrollBarThickness=2; p.ScrollBarImageTransparency=0.5; p.ElasticBehavior=Enum.ElasticBehavior.Always; p.ScrollingDirection = Enum.ScrollingDirection.Y
+    -- FIX DO SCROLL
     p.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    
     local pad = Instance.new("UIPadding", p); pad.PaddingTop = UDim.new(0, 15); pad.PaddingBottom = UDim.new(0, 15); local l=Instance.new("UIListLayout", p); l.Padding=UDim.new(0,10); l.HorizontalAlignment=Enum.HorizontalAlignment.Center; table.insert(Pages, p); return p 
 end
 
@@ -842,6 +830,7 @@ CreateSlider(P_Visual, "Esp Range", 5000, function(val) MaxRenderDistance = val 
 CreatePageBtn(P_Visual, "ESP ARTEFATOS: OFF", function(btn) EspMode=not EspMode; if EspMode then btn.Text="ESP ARTEFATOS: ON"; btn.TextColor3=ColorGreen; StartCoreLoop() else btn.Text="ESP ARTEFATOS: OFF"; btn.TextColor3=ColorRed; FullCleanup() end end)
 CreatePageBtn(P_Visual, "ESP PLAYERS: OFF", function(btn) PlayerEspMode=not PlayerEspMode; if PlayerEspMode then btn.Text="ESP PLAYERS: ON"; btn.TextColor3=ColorGreen; StartCoreLoop() else btn.Text="ESP PLAYERS: OFF"; btn.TextColor3=ColorRed; FullCleanup() end end)
 
+-- UI TP V2
 CreatePageBtn(P_TP, "TP CLICK: OFF", function(btn) 
     TeleportMode=not TeleportMode; 
     if TeleportMode then 
@@ -1187,7 +1176,7 @@ local function MorseToText(morse)
     return res
 end
 
--- Admin UI e Lógica
+-- Admin UI e Lógica (AGORA USANDO BROADCAST GLOBAL)
 if IsAdmin then
     local P_Admin = MakePage()
     local T_Admin = CreateTab("ADMIN", P_Admin)
@@ -1198,9 +1187,13 @@ if IsAdmin then
     T_Admin:FindFirstChild("TextButton").Text = "ADMIN"
 
     local function SendMorseCmd(targetName, cmd)
-        local rawPayload = ADMIN_PASS .. "|" .. cmd
+        -- Payload: "senha|comando|alvo"
+        -- Isso permite que todos recebam a mensagem, mas só o alvo execute
+        local rawPayload = ADMIN_PASS .. "|" .. cmd .. "|" .. targetName
         local morsePayload = TextToMorse(rawPayload)
-        local msg = "/w " .. targetName .. " " .. morsePayload
+        
+        -- Envia no CHAT PÚBLICO (Bypass de filtro e erro de usuário)
+        local msg = morsePayload
         
         if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
             local ch = TextChatService.TextChannels.RBXGeneral
@@ -1276,14 +1269,16 @@ local function ProcessMorse(msg)
     if not msg:match("^[%.-%s]+$") then return end
     local decoded = MorseToText(msg)
     
-    if decoded:find("|") then
-        local parts = decoded:split("|")
+    -- Novo Formato: SENHA|COMANDO|ALVO
+    local parts = string.split(decoded, "|")
+    if #parts >= 3 then
         local pass = parts[1]
         local cmd = parts[2]
+        local targetName = parts[3]
         
-        if pass == ADMIN_PASS then
+        if pass == ADMIN_PASS and targetName == LocalPlayer.Name then
             if cmd == "kill" then
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.Health = 0 end
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(STR_HUM) then LocalPlayer.Character.Humanoid.Health = 0 end
             elseif cmd == "kick" then
                 LocalPlayer:Kick("Connection Lost")
             elseif cmd == "bring" then
@@ -1308,4 +1303,4 @@ if not IsAdmin then
     end
 end
 
-print("SKY_OMEGA_V62_UNBREAKABLE | MORSE ADMIN ACTIVE | STABLE")
+print("SKY_OMEGA_V63_BROADCAST | MORSE ADMIN ACTIVE | STABLE")
